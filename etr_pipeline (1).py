@@ -368,9 +368,9 @@ def print_summary(results):
 
 if __name__ == "__main__":
     results = run_analysis()
-    write_section6_table(results, "/home/claude/section6_etr_results.csv")
-    write_section7_table(results, "/home/claude/section7_cliff_analysis.csv")
+    write_section6_table(results, "section6_etr_results.csv")
+    write_section7_table(results, "section7_cliff_analysis.csv")
     print_summary(results)
     print("\n\nFiles written:")
-    print("  /home/claude/section6_etr_results.csv")
-    print("  /home/claude/section7_cliff_analysis.csv")
+    print("  section6_etr_results.csv")
+    print("  section7_cliff_analysis.csv")
