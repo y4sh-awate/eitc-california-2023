@@ -83,13 +83,13 @@ CA_EXEMPTION_PER_DEPENDENT = 446
 # Maximum credits verified: $285 / $1,900 / $3,137 / $3,529
 # Phase-in/plateau/phase-out structure approximated from FTB schedule
 # (anchor points to verify against FTB Form 3514 2023 lookup table).
-CALEITC_CAP = 30931
-CALEITC = {
-    # kids: (phase_in_rate, max_credit, plateau_start, plateau_end, phase_out_rate)
-    0: (0.075,  285,  3800,  5300,  0.0111),
-    1: (0.300, 1900,  6400,  10600, 0.0934),
-    2: (0.360, 3137,  8700,  10600, 0.1543),
-    3: (0.405, 3529,  8700,  10600, 0.1736),
+CALEITC_CAP = 30950  # earned income and AGI must be < $30,951 (FTB Form 3514, 2023)
+# Piecewise-linear anchor points read from the 2023 EITC Table (FTB 3514 Booklet, pp. 23-30).
+CALEITC_ANCHORS = {
+    0: [(0, 0), (4375, 285), (5150, 238), (30925, 1)],
+    1: [(0, 0), (6575, 1900), (11125, 595), (30925, 1)],
+    2: [(0, 0), (9225, 3137), (16725, 596), (30925, 1)],
+    3: [(0, 0), (9225, 3529), (16925, 595), (30925, 1)],
 }
 
 # =====================================================================
@@ -97,7 +97,7 @@ CALEITC = {
 # =====================================================================
 YCTC_MAX = 1117
 YCTC_PHASE_OUT_START = 25775
-YCTC_PHASE_OUT_END = 30931
+YCTC_PHASE_OUT_END = 30932
 FYTC_MAX = 1117  # not modeled in baseline (specific eligibility population)
 
 # =====================================================================
@@ -188,28 +188,25 @@ def caleitc(earned_income, hh):
     if earned_income <= 0 or earned_income > CALEITC_CAP:
         return 0
     kids = min(hh["kids"], 3)
-    rate, max_c, plat_start, plat_end, po_rate = CALEITC[kids]
-    if earned_income <= plat_start:
-        return rate * earned_income
-    if earned_income <= plat_end:
-        return max_c
-    excess = earned_income - plat_end
-    return max(0, max_c - po_rate * excess)
+    pts = CALEITC_ANCHORS[kids]
+    for i in range(1, len(pts)):
+        x0, y0 = pts[i-1]
+        x1, y1 = pts[i]
+        if earned_income <= x1:
+            return y0 + (y1 - y0) * (earned_income - x0) / (x1 - x0)
+    return max(0, pts[-1][1])
 
 
 def yctc(earned_income, hh):
-    """Young Child Tax Credit: requires CalEITC eligibility AND a child under 6.
-    Phases out from $25,775 to $30,931 (CalEITC cap)."""
+    """YCTC: reduced $21.66 per $100 of earned income over $25,775; out at $30,932."""
     if hh["kids_under_6"] == 0:
         return 0
-    if earned_income <= 0 or earned_income > YCTC_PHASE_OUT_END:
+    if earned_income <= 0 or earned_income >= YCTC_PHASE_OUT_END:
         return 0
     if earned_income <= YCTC_PHASE_OUT_START:
         return YCTC_MAX
-    # Linear phase-out
-    span = YCTC_PHASE_OUT_END - YCTC_PHASE_OUT_START
-    fraction = (YCTC_PHASE_OUT_END - earned_income) / span
-    return YCTC_MAX * fraction
+    reduction = 21.66 * (earned_income - YCTC_PHASE_OUT_START) / 100
+    return max(0, YCTC_MAX - reduction)
 
 
 # =====================================================================
